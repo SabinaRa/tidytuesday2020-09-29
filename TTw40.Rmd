@@ -1,0 +1,152 @@
+---
+title: "TidyTuesday Beyoncé and Taylor Swift Lyrics"
+output: html_document
+---
+TidyTuesday Beyoncé and Taylor Swift Lyrics 2020-09-29 |
+[Description](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-09-29/readme.md) |
+Data source: Rosie Baillie and Dr. Sara Stoudt |
+Contributor: Sabina Rako, Twitter: @ra_sabina]
+
+```{r setup, message=FALSE, warning=FALSE}
+knitr::opts_chunk$set(message = FALSE, warning = FALSE)
+library(tidytuesdayR)
+library(tidyverse)
+library(skimr)
+library(tidytext)
+library(wordcloud)
+library(ggwordcloud)
+library(ggtext)
+library(patchwork)
+```
+
+## Loading data
+
+```{r message=FALSE, warning=FALSE}
+
+beyonce_lyrics <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-09-29/beyonce_lyrics.csv')
+taylor_swift_lyrics <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-09-29/taylor_swift_lyrics.csv')
+sales <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-09-29/sales.csv')
+charts <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-09-29/charts.csv')
+
+
+```
+
+## Exploring data
+
+```{r message=FALSE, warning=FALSE}
+
+skim(sales)
+```
+
+## Preparing data 
+
+```{r}
+# Top song sales
+top_songs_sales <- sales %>% 
+  filter(country == "WW" | country == "World") %>% 
+  group_by(artist, title) %>% 
+  summarise( n = sum(sales)) %>% 
+  arrange(desc(n)) %>% 
+  ungroup() 
+
+#Top charts position
+
+charts %>% filter (title == "Fearless" | title == "Dangerously in Love") %>% filter(chart_position == 1) %>% select(title, chart)
+
+
+text_Beyonce_DIL <- beyonce_lyrics %>% filter(str_detect(song_name, "^Crazy in Love") | song_name == "Naughty Girl" | str_detect(song_name, "^Baby Boy (Ft. Sean Paul)") | song_name == "Be with you" | song_name == "Me, Myself and I" | song_name == "Yes" | song_name == "Speechless" | str_detect(song_name, "^That's How You Like It") | str_detect(song_name, "^The Closer I Get to You") | song_name == "Dangerously in Love 2" | song_name == "Beyoncé interlude" | song_name == "Gift from Virgo" | song_name == "Work It Out") %>% select(line)
+
+text_Beyonce_DIL <- text_Beyonce_DIL %>% 
+  unnest_tokens(word, line)
+
+data("stop_words")
+
+text_Beyonce_DIL_words <- text_Beyonce_DIL %>% 
+  anti_join(stop_words)  %>% 
+  count(word, sort = TRUE) %>% 
+  top_n(10,n)
+
+
+text_Taylor_DIL <- taylor_swift_lyrics %>% 
+  filter(Album == "Fearless") %>% select(Lyrics) %>% 
+  mutate(Lyrics = strsplit(as.character(Lyrics), "\n")) %>%  
+  unnest(Lyrics)
+
+
+text_Taylor_DIL <- text_Taylor_DIL %>% unnest_tokens(word, Lyrics)
+
+text_Taylor_DIL_words <- text_Taylor_DIL %>% 
+  anti_join(stop_words)  %>% 
+  count(word, sort = TRUE) %>% 
+  top_n(10,n)
+
+
+
+
+text_Beyonce_DIL_words <- text_Beyonce_DIL_words %>% 
+  mutate(word = forcats::fct_reorder(word, n), fill1 = ifelse(word == "love", "yes", "no"))
+                                                            
+p1 <- ggplot(text_Beyonce_DIL_words, aes(word,n)) + 
+  geom_bar(aes(fill = fill1), stat = "identity") +
+  theme_void() + 
+  coord_flip() + 
+  geom_text(aes(label = n), nudge_y = -2, color = "white", size = 3.5) +
+  theme(axis.text.y = element_text(color = "steelblue", size = 18)) +
+  labs(title = "Beyoncé: <b>Dangerously in Love</b><br> (11.000.000 sales worldwide)") + 
+  theme(legend.position="none",plot.title.position = "plot",plot.title = element_textbox_simple(size = 15,lineheight = 1, padding = margin(5.5, 5.5, 5.5, 5.5),margin = margin(0, 0, 5.5, 0),fill = alpha("steelblue", 0.3))) + 
+  scale_y_continuous(breaks = seq(0, 75, 10), limits=c(0,75)) + 
+  scale_fill_manual(values = c("yes" = "#b44682", "no" = "steelblue"))
+
+p1 <- p1 + annotate(geom = "curve", x = 6.5, y = 65, xend = "love", yend = 72, 
+    curvature = .3, color = "steelblue", arrow = arrow(length = unit(2, "mm"))) +
+  annotate(geom = "text", x = 5.5, y = 45, label = "20/71 times in a song \nNaughty Girl", hjust = "left", size = 4, color = "steelblue")
+
+text_Taylor_DIL_words <- text_Taylor_DIL_words %>% 
+  mutate(word = forcats::fct_reorder(word, n), fill2 = ifelse(word == "love", "yes", "no"))
+
+p2 <- ggplot(text_Taylor_DIL_words, aes(word,n)) + 
+  geom_bar(aes(fill = fill2), stat = "identity") +
+  theme_void() + 
+  coord_flip() + 
+  geom_text(aes(label = n), nudge_y = -2, color = "white", size = 3.5) +
+  theme(axis.text.y = element_text(color = "steelblue", size = 18)) + 
+  labs(title = "Taylor Swift: <b>Fearless</b><br> (12.000.000 sales worldwide)") + 
+  theme(legend.position="none",plot.title.position = "plot",plot.title = element_textbox_simple(size = 15,lineheight = 1, padding = margin(5.5, 5.5, 5.5, 5.5),margin = margin(0, 0, 5.5, 0),fill = alpha("steelblue", 0.3))) + 
+  scale_y_continuous(breaks = seq(0, 75, 10), limits=c(0,75)) + 
+  scale_fill_manual(values = c("yes" = "#b44682", "no" = "steelblue"))
+
+p2 <- p2 + annotate(geom = "curve", x = 8.5, y = 50, xend = "feel", yend = 28, 
+    curvature = .3, color = "steelblue", arrow = arrow(length = unit(2, "mm"))) +
+  annotate(geom = "text", x = 7.5, y = 35, label = "7/27 times in a song \nForever & Always", hjust = "left", size = 4, color = "steelblue")
+
+(p1 + p2)  + 
+  plot_annotation(title = "Most frequently used words in Beyonce's and Taylor Swift's top selling albums",caption = "Data: Rosie Baillie and Dr. Sara Stoudt: Vis: @ra_sabina", theme = theme(plot.title = element_textbox_simple(size = 20,lineheight = 1, padding = margin(5.5, 5.5, 5.5, 5.5),margin = margin(0, 0, 5.5, 0),fill = alpha("#b44682", 0.3))))
+
+ggsave("TTw40plot.png", height = 5, width = 10)
+                                                                                                                                                                                               
+                                                              
+
+```
+## Visualization
+
+
+
+```{r}
+
+#Songs with words "love" and "feel"
+
+beyoncewordlove <- beyonce_lyrics %>% filter(str_detect(song_name, "^Crazy in Love") | song_name == "Naughty Girl" | str_detect(song_name, "^Baby Boy (Ft. Sean Paul)") | song_name == "Be with you" | song_name == "Me, Myself and I" | song_name == "Yes" | song_name == "Speechless" | str_detect(song_name, "^That's How You Like It") | str_detect(song_name, "^The Closer I Get to You") | song_name == "Dangerously in Love 2" | song_name == "Beyoncé interlude" | song_name == "Gift from Virgo" | song_name == "Work It Out") %>% select(line, song_name)
+
+beyoncewordlove <- beyoncewordlove %>% unnest_tokens(word, line)
+
+beyoncewordlove <- beyoncewordlove %>% filter(word == "love") %>% group_by(song_name) %>% count() %>% arrange(desc(n)) 
+
+beyoncewordlove
+
+
+taylorwordfeel <-  taylor_swift_lyrics %>% filter(Album == "Fearless") %>% select(Lyrics, Title) %>% mutate(Lyrics = strsplit(as.character(Lyrics), "\n")) %>%  unnest(Lyrics)
+
+taylorwordfeel <- taylorwordfeel %>% unnest_tokens(word, Lyrics) %>% filter(word == "feel") 
+  
+taylorwordfeel  
+```
